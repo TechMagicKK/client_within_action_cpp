@@ -15,8 +15,6 @@ private:
     rclcpp_action::Server<Fibonacci>::SharedPtr action_server_;
     // Action clients called in the callback
     rclcpp_action::Client<Fibonacci>::SharedPtr fibonacci_client_;
-    // Result of the action client
-    Fibonacci::Result::SharedPtr client_result_;
 
 public:
     ClientFromActionNode()
@@ -57,11 +55,11 @@ public:
     {
         (void)goal_handle;
         RCLCPP_INFO(this->get_logger(), "Server callback: Goal has been accepted");
-        // Call action clients
+        // Copy the goal
         auto goal = Fibonacci::Goal();
         goal.order = goal_handle->get_goal()->order;
-        auto send_goal_options = rclcpp_action::Client<Fibonacci>::SendGoalOptions();
         // Set the callback functions
+        auto send_goal_options = rclcpp_action::Client<Fibonacci>::SendGoalOptions();
         send_goal_options.goal_response_callback =
             std::bind(&ClientFromActionNode::client_goal_response_callback, this, _1);
         send_goal_options.feedback_callback =
@@ -69,7 +67,6 @@ public:
         send_goal_options.result_callback =
             std::bind(&ClientFromActionNode::client_result_callback, this, _1);
         // Call send_goal
-        client_result_ = nullptr;
         fibonacci_client_->async_send_goal(goal, send_goal_options);
         // How can we wait for the client result??
         auto result = std::make_shared<Fibonacci::Result>();
@@ -94,7 +91,7 @@ public:
         switch (result.code)
         {
         case rclcpp_action::ResultCode::SUCCEEDED:
-            client_result_ = result.result;
+            RCLCPP_INFO(this->get_logger(), "Goal was succeeded");
             break;
         case rclcpp_action::ResultCode::ABORTED:
             RCLCPP_ERROR(this->get_logger(), "Goal was aborted");
