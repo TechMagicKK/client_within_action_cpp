@@ -61,7 +61,6 @@ public:
     {
         (void)goal_handle;
         RCLCPP_INFO(this->get_logger(), "Server callback: Goal has been accepted");
-        auto result = std::make_shared<Fibonacci::Result>();
         // Call action clients
         auto goal = Fibonacci::Goal();
         goal.order = goal_handle->get_goal()->order;
@@ -69,24 +68,39 @@ public:
         auto send_goal_options = rclcpp_action::Client<Fibonacci>::SendGoalOptions();
         // Set the feedback callback alone
         send_goal_options.feedback_callback =
-            std::bind(&ClientFromActionNode::client_feedback_callback, this, _1, _2);
+            std::bind(&ClientFromActionNode::client_feedback_callback, this, goal_handle, _1, _2);
         auto send_goal_future = fibonacci_client_->async_send_goal(goal, send_goal_options);
-        // spin until the future is ready
-        rclcpp::spin_until_future_complete(this->get_node_base_interface(), send_goal_future);
-
+        // Block until the goal is sent with timeout
+        if (send_goal_future.wait_for(std::chrono::seconds(10)) != std::future_status::ready)
+        {
+            RCLCPP_ERROR(this->get_logger(), "Server callback: send_goal failed");
+            auto result = std::make_shared<Fibonacci::Result>();
+            goal_handle->abort(result);
+            return;
+        }
         auto client_goal_handle = send_goal_future.get();
         auto get_result_future = fibonacci_client_->async_get_result(client_goal_handle);
-        
-        // spin until the future is ready
-        rclcpp::spin_until_future_complete(this->get_node_base_interface(), get_result_future);
+        // Block until the result is received with timeout
+        if (get_result_future.wait_for(std::chrono::seconds(10)) != std::future_status::ready)
+        {
+            RCLCPP_ERROR(this->get_logger(), "Server callback: get_result failed");
+            fibonacci_client_->async_cancel_goal(client_goal_handle);
+            auto result = std::make_shared<Fibonacci::Result>();
+            goal_handle->abort(result);
+            return;
+        }
         auto client_result = get_result_future.get();
         goal_handle->succeed(client_result.result);
     }
     // Action client callback which is called when a feedback is received
-    void client_feedback_callback(ClientGoalHandleFibonacci::SharedPtr,
+    void client_feedback_callback(std::shared_ptr<ServerGoalHandleFibonacci> server_goal_handle,
+                                  ClientGoalHandleFibonacci::SharedPtr,
                                   const std::shared_ptr<const Fibonacci::Feedback> feedback)
     {
-        RCLCPP_INFO(this->get_logger(), "Client callback: Received feedback: %d", feedback->partial_sequence.back());
+        // Publish a feedback as an action server
+        auto feedback_msg = std::make_shared<Fibonacci::Feedback>();
+        *feedback_msg = *feedback;
+        server_goal_handle->publish_feedback(feedback_msg);
     }
 }; // class ClientFromActionNode
 
