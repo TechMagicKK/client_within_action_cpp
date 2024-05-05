@@ -64,11 +64,12 @@ public:
         // Call action clients
         auto goal = Fibonacci::Goal();
         goal.order = goal_handle->get_goal()->order;
-
+        // Create a shared pointer to the feedback
+        Fibonacci::Feedback::SharedPtr feedback = nullptr;
         auto send_goal_options = rclcpp_action::Client<Fibonacci>::SendGoalOptions();
         // Set the feedback callback alone
         send_goal_options.feedback_callback =
-            std::bind(&ClientFromActionNode::client_feedback_callback, this, _1, _2);
+            std::bind(&ClientFromActionNode::client_feedback_callback, this, _1, _2, std::ref(feedback));
         auto send_goal_future = fibonacci_client_->async_send_goal(goal, send_goal_options);
         // Block until the goal is sent with timeout
         if (send_goal_future.wait_for(std::chrono::seconds(10)) != std::future_status::ready)
@@ -80,23 +81,27 @@ public:
         }
         auto client_goal_handle = send_goal_future.get();
         auto get_result_future = fibonacci_client_->async_get_result(client_goal_handle);
-        // Block until the result is received with timeout
-        if (get_result_future.wait_for(std::chrono::seconds(10)) != std::future_status::ready)
+        // Wait for the future to be ready with timeout
+        while (get_result_future.wait_for(std::chrono::seconds(1)) != std::future_status::ready)
         {
-            RCLCPP_ERROR(this->get_logger(), "Server callback: get_result failed");
-            fibonacci_client_->async_cancel_goal(client_goal_handle);
-            auto result = std::make_shared<Fibonacci::Result>();
-            goal_handle->abort(result);
-            return;
+            RCLCPP_INFO(this->get_logger(), "Waiting for the result");
+            // Publish feedback if available
+            if (feedback != nullptr)
+            {
+                goal_handle->publish_feedback(feedback);
+            }
         }
         auto client_result = get_result_future.get();
         goal_handle->succeed(client_result.result);
     }
     // Action client callback which is called when a feedback is received
     void client_feedback_callback(ClientGoalHandleFibonacci::SharedPtr,
-                                  const std::shared_ptr<const Fibonacci::Feedback> feedback)
+                                  const std::shared_ptr<const Fibonacci::Feedback> feedback,
+                                  Fibonacci::Feedback::SharedPtr &feedback_ptr)
     {
         RCLCPP_INFO(this->get_logger(), "Client callback: Received feedback: %d", feedback->partial_sequence.back());
+        feedback_ptr = std::make_shared<Fibonacci::Feedback>();
+        *feedback_ptr = *feedback;
     }
 }; // class ClientFromActionNode
 
