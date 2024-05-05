@@ -61,30 +61,6 @@ ament_target_dependencies(client_within_action_6
   std_msgs
 )
 
-add_executable(client_within_action_7 src/client_within_action_7.cpp)
-ament_target_dependencies(client_within_action_7
-  rclcpp
-  rclcpp_action
-  action_tutorials_interfaces
-  std_msgs
-)
-
-add_executable(client_within_action_8 src/client_within_action_8.cpp)
-ament_target_dependencies(client_within_action_8
-  rclcpp
-  rclcpp_action
-  action_tutorials_interfaces
-  std_msgs
-)
-
-add_executable(client_within_action_9 src/client_within_action_9.cpp)
-ament_target_dependencies(client_within_action_9
-  rclcpp
-  rclcpp_action
-  action_tutorials_interfaces
-  std_msgs
-)
-
 install(TARGETS
   client_within_action_1
   client_within_action_2
@@ -92,9 +68,6 @@ install(TARGETS
   client_within_action_4
   client_within_action_5
   client_within_action_6
-  client_within_action_7
-  client_within_action_8
-  client_within_action_9
   
   DESTINATION lib/${PROJECT_NAME})
 
