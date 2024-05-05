@@ -64,12 +64,8 @@ public:
         // Call action clients
         auto goal = Fibonacci::Goal();
         goal.order = goal_handle->get_goal()->order;
-
-        auto send_goal_options = rclcpp_action::Client<Fibonacci>::SendGoalOptions();
-        // Set the feedback callback alone
-        send_goal_options.feedback_callback =
-            std::bind(&ClientFromActionNode::client_feedback_callback, this, _1, _2);
-        auto send_goal_future = fibonacci_client_->async_send_goal(goal, send_goal_options);
+        // send_goal returns a future that can be used to get the result
+        auto send_goal_future = fibonacci_client_->async_send_goal(goal);
         // Spin until the future is ready (THIS DOESN'T WORK)
         rclcpp::spin_until_future_complete(this->get_node_base_interface(), send_goal_future);
 
@@ -79,12 +75,6 @@ public:
         rclcpp::spin_until_future_complete(this->get_node_base_interface(), get_result_future);
         auto client_result = get_result_future.get();
         goal_handle->succeed(client_result.result);
-    }
-    // Action client callback which is called when a feedback is received
-    void client_feedback_callback(ClientGoalHandleFibonacci::SharedPtr,
-                                  const std::shared_ptr<const Fibonacci::Feedback> feedback)
-    {
-        RCLCPP_INFO(this->get_logger(), "Client callback: Received feedback: %d", feedback->partial_sequence.back());
     }
 }; // class ClientFromActionNode
 
